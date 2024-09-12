@@ -376,51 +376,49 @@ function immutableInit(config) {
     if (arguments.length === 0) {
       return this;
     }
-
+  
     if (other === null || (typeof other !== "object")) {
       throw new TypeError("Immutable#merge can only be invoked with objects or arrays, not " + JSON.stringify(other));
     }
-
-    var receivedArray = (Array.isArray(other)),
+  
+    var receivedArray = Array.isArray(other),
         deep          = config && config.deep,
         mode          = config && config.mode || 'merge',
         merger        = config && config.merger,
         result;
-
+  
     // Use the given key to extract a value from the given object, then place
     // that value in the result object under the same key. If that resulted
     // in a change from this object's value at that key, set anyChanges = true.
     function addToResult(currentObj, otherObj, key) {
-      var immutableValue = Immutable(otherObj[key]);
-      var mergerResult = merger && merger(currentObj[key], immutableValue, config);
       var currentValue = currentObj[key];
-
-      if ((result !== undefined) ||
-        (mergerResult !== undefined) ||
-        (!currentObj.hasOwnProperty(key)) ||
-        !isEqual(immutableValue, currentValue)) {
-
-        var newValue;
-
-        if (mergerResult !== undefined) {
-          newValue = mergerResult;
-        } else if (deep && isMergableObject(currentValue) && isMergableObject(immutableValue)) {
-          newValue = Immutable.merge(currentValue, immutableValue, config);
-        } else {
-          newValue = immutableValue;
+      var otherValue = otherObj[key];
+  
+      if (currentValue === otherValue && currentObj.hasOwnProperty(key)) {
+        // No change, so skip processing
+        return;
+      }
+  
+      var newValue;
+      var mergerResult = merger && merger(currentValue, otherValue, config);
+  
+      if (mergerResult !== undefined) {
+        newValue = mergerResult;
+      } else if (deep && isMergableObject(currentValue) && isMergableObject(otherValue)) {
+        newValue = Immutable.merge(currentValue, otherValue, config);
+      } else {
+        newValue = Immutable(otherValue);
+      }
+  
+      if (!isEqual(currentValue, newValue) || !currentObj.hasOwnProperty(key)) {
+        if (result === undefined) {
+          // Make a shallow clone of the current object.
+          result = quickCopy(currentObj, instantiateEmptyObject(currentObj));
         }
-
-        if (!isEqual(currentValue, newValue) || !currentObj.hasOwnProperty(key)) {
-          if (result === undefined) {
-            // Make a shallow clone of the current object.
-            result = quickCopy(currentObj, instantiateEmptyObject(currentObj));
-          }
-
-          result[key] = newValue;
-        }
+        result[key] = newValue;
       }
     }
-
+  
     function clearDroppedKeys(currentObj, otherObj) {
       for (var key in currentObj) {
         if (!otherObj.hasOwnProperty(key)) {
@@ -432,14 +430,14 @@ function immutableInit(config) {
         }
       }
     }
-
+  
     var key;
-
+  
     // Achieve prioritization by overriding previous values that get in the way.
     if (!receivedArray) {
       // The most common use case: just merge one object into the existing one.
       for (key in other) {
-        if (Object.getOwnPropertyDescriptor(other, key)) {
+        if (Object.prototype.hasOwnProperty.call(other, key)) {
           addToResult(this, other, key);
         }
       }
@@ -450,15 +448,15 @@ function immutableInit(config) {
       // We also accept an Array
       for (var index = 0, length = other.length; index < length; index++) {
         var otherFromArray = other[index];
-
+  
         for (key in otherFromArray) {
-          if (otherFromArray.hasOwnProperty(key)) {
+          if (Object.prototype.hasOwnProperty.call(otherFromArray, key)) {
             addToResult(result !== undefined ? result : this, otherFromArray, key);
           }
         }
       }
     }
-
+  
     if (result === undefined) {
       return this;
     } else {
